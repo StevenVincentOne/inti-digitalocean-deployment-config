@@ -1,0 +1,11 @@
+tls:
+  certificates:
+    - certFile: /ssl/inti.intellipedia.ai.crt
+      keyFile: /ssl/inti.intellipedia.ai.key
+      stores:
+        - default
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /ssl/inti.intellipedia.ai.crt
+        keyFile: /ssl/inti.intellipedia.ai.key

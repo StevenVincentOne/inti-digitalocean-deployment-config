@@ -1,0 +1,308 @@
+version: '3.9'
+
+networks:
+  unmute-net:
+    external: true
+
+volumes:
+  traefik-cert:
+
+services:
+  traefik:
+    image: intellipedia/inti-traefik:v3.3.1
+    env_file:
+      - .env
+    command:
+      - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
+      - "--providers.swarm.exposedByDefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.tlschallenge=true"
+      - "--certificatesresolvers.le.acme.email=steve@intellipedia.ai"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--metrics.prometheus=true"
+      - "--log.level=INFO"
+      - "--ping=true"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik-cert:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    deploy:
+      update_config:
+        order: start-first
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - unmute-net
+
+  frontend:
+    image: intellipedia/inti-frontend:v15.10.1
+    environment:
+      - LLM_SERVICE_URL=http://llm:8000
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.frontend.rule=Host(`inti.intellipedia.ai`)"
+        - "traefik.http.routers.frontend.entrypoints=websecure"
+        - "traefik.http.routers.frontend.tls.certresolver=le"
+        - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+        - "traefik.http.routers.frontend.priority=50"
+        - "traefik.http.routers.frontendapi.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/llm`)"
+        - "traefik.http.routers.frontendapi.entrypoints=websecure"
+        - "traefik.http.routers.frontendapi.tls.certresolver=le"
+        - "traefik.http.routers.frontendapi.priority=200"
+        - "traefik.http.routers.frontendapi.service=frontend"
+    networks:
+      - unmute-net
+
+  backend:
+    image: intellipedia/inti-backend:latest
+    env_file:
+      - .env
+    environment:
+      - KYUTAI_LLM_URL=http://unmute_llm:8080
+      - KYUTAI_LLM_API_KEY=YOUR_GROQ_API_KEY_HERE
+      - OPENAI_API_KEY=YOUR_GROQ_API_KEY_HERE
+      - KYUTAI_STT_URL=http://unmute_stt:8080
+      - KYUTAI_TTS_URL=http://unmute_tts:8080
+      - KYUTAI_VOICE_CLONING_URL=http://unmute_voice_cloning:8080
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.backend.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.backend.entrypoints=websecure"
+        - "traefik.http.routers.backend.tls.certresolver=le"
+        - "traefik.http.routers.backend.priority=100"
+        - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+        - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.services.backend.loadbalancer.server.port=80"
+    networks:
+      - unmute-net
+
+  unmute:
+    image: intellipedia/unmute-websocket:v2
+    env_file:
+      - .env
+    environment:
+      - KYUTAI_STT_URL=ws://unmute_stt:8080
+      - KYUTAI_TTS_URL=ws://unmute_tts:8080
+      - KYUTAI_LLM_URL=http://unmute_llm:8080
+      - KYUTAI_LLM_MODEL=openai/gpt-oss-20b
+      - KYUTAI_LLM_API_KEY=YOUR_GROQ_API_KEY_HERE
+      - OPENAI_API_KEY=YOUR_GROQ_API_KEY_HERE
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.unmute.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
+        - "traefik.http.routers.unmute.entrypoints=websecure"
+        - "traefik.http.routers.unmute.tls.certresolver=le"
+        - "traefik.http.routers.unmute.priority=200"
+        - "traefik.http.services.unmute.loadbalancer.server.port=80"
+    networks:
+      - unmute-net
+
+
+  # STT Proxy Service - Forwards to Groq Whisper API
+  unmute_stt:
+    image: nginx:alpine
+    command: |
+      sh -c "
+      cat > /etc/nginx/nginx.conf << 'EOF'
+      events {
+          worker_connections 1024;
+      }
+      http {
+          client_max_body_size 100M;
+          server {
+              listen 8080;
+              
+              # Health check endpoint
+              location /api/build_info {
+                  return 200 '{\"status\": \"ok\", \"service\": \"stt-groq-proxy\"}';
+                  add_header Content-Type application/json;
+              }
+              
+              # Audio transcription endpoint
+              location /audio/transcriptions {
+                  proxy_pass https://api.groq.com/openai/v1/audio/transcriptions;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+              }
+              
+              # Catch-all for other audio endpoints
+              location / {
+                  proxy_pass https://api.groq.com/openai/v1/audio/;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+              }
+          }
+      }
+      EOF
+      nginx -g 'daemon off;'
+      "
+    deploy:
+      update_config:
+        order: start-first
+    networks:
+      - unmute-net
+
+  # TTS Proxy Service - Forwards to Groq TTS API
+  unmute_tts:
+    image: nginx:alpine
+    command: |
+      sh -c "
+      cat > /etc/nginx/nginx.conf << 'EOF'
+      events {
+          worker_connections 1024;
+      }
+      http {
+          server {
+              listen 8080;
+              
+              # Health check endpoint
+              location /api/build_info {
+                  return 200 '{\"status\": \"ok\", \"service\": \"tts-groq-proxy\"}';
+                  add_header Content-Type application/json;
+              }
+              
+              # Audio synthesis endpoint (Groq TTS)
+              location /audio/speech {
+                  proxy_pass https://api.groq.com/openai/v1/audio/speech;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+              }
+              
+              # Catch-all for other audio endpoints
+              location / {
+                  proxy_pass https://api.groq.com/openai/v1/audio/;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+              }
+          }
+      }
+      EOF
+      nginx -g 'daemon off;'
+      "
+    deploy:
+      update_config:
+        order: start-first
+    networks:
+      - unmute-net
+
+  # Voice Cloning Proxy Service - Forwards to Groq TTS API
+  unmute_voice_cloning:
+    image: nginx:alpine
+    command: |
+      sh -c "
+      cat > /etc/nginx/nginx.conf << 'EOF'
+      events {
+          worker_connections 1024;
+      }
+      http {
+          server {
+              listen 8080;
+              
+              # Health check endpoint
+              location /api/build_info {
+                  return 200 '{\"status\": \"ok\", \"service\": \"voice-cloning-groq-proxy\"}';
+                  add_header Content-Type application/json;
+              }
+              
+              # Voice synthesis endpoint
+              location /audio/speech {
+                  proxy_pass https://api.groq.com/openai/v1/audio/speech;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+              }
+              
+              # Catch-all for other endpoints
+              location / {
+                  proxy_pass https://api.groq.com/openai/v1/audio/;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+              }
+          }
+      }
+      EOF
+      nginx -g 'daemon off;'
+      "
+    deploy:
+      update_config:
+        order: start-first
+    networks:
+      - unmute-net
+
+  # LLM Proxy Service - Forwards to Groq LLM API with Authentication
+  unmute_llm:
+    image: nginx:alpine
+    command: |
+      sh -c "
+      cat > /etc/nginx/nginx.conf << 'EOF'
+      events {
+          worker_connections 1024;
+      }
+      http {
+          resolver 8.8.8.8 8.8.4.4 valid=300s;
+          resolver_timeout 5s;
+          
+          server {
+              listen 8080;
+              
+              # Health check endpoint for backend health monitoring
+              location /v1/models {
+                  proxy_pass https://api.groq.com/openai/v1/models;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+                  proxy_set_header Host api.groq.com;
+                  proxy_ssl_verify off;
+                  proxy_ssl_server_name on;
+                  proxy_ssl_protocols TLSv1.2 TLSv1.3;
+              }
+              
+              # Chat completions endpoint
+              location /v1/chat/completions {
+                  proxy_pass https://api.groq.com/openai/v1/chat/completions;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+                  proxy_set_header Host api.groq.com;
+                  proxy_ssl_verify off;
+                  proxy_ssl_server_name on;
+                  proxy_ssl_protocols TLSv1.2 TLSv1.3;
+              }
+              
+              # Catch-all for other v1 endpoints
+              location /v1/ {
+                  proxy_pass https://api.groq.com/openai/v1/;
+                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
+                  proxy_set_header Content-Type application/json;
+                  proxy_set_header Host api.groq.com;
+                  proxy_ssl_verify off;
+                  proxy_ssl_server_name on;
+                  proxy_ssl_protocols TLSv1.2 TLSv1.3;
+              }
+          }
+      }
+      EOF
+      nginx -g 'daemon off;'
+      "
+    deploy:
+      update_config:
+        order: start-first
+    networks:
+      - unmute-net

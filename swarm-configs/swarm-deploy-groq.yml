@@ -1,0 +1,205 @@
+version: '3.9'
+
+networks:
+  unmute-net:
+    external: true
+
+volumes:
+  traefik-cert:
+
+services:
+  traefik:
+    image: traefik:v3.3.1
+    command:
+      - "--configFile=/etc/traefik/traefik-static.yml"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /root/traefik-static.yml:/etc/traefik/traefik-static.yml:ro
+      - /root/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - /root/certs:/etc/certs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    networks:
+      - unmute-net
+
+  frontend:
+    image: intellipedia/inti-frontend:v15.10.1
+    environment:
+      - NEXT_PUBLIC_IN_DOCKER=true
+      - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/api/v1/realtime
+      - NEXT_PUBLIC_BACKEND_URL=https://inti.intellipedia.ai/api
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.frontend.rule=Host(`inti.intellipedia.ai`)"
+        - "traefik.http.routers.frontend.entrypoints=websecure"
+        - "traefik.http.routers.frontend.tls=true"
+        - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+        - "traefik.http.routers.frontend.priority=50"
+    networks:
+      - unmute-net
+
+  backend:
+    image: intellipedia/inti-backend:latest
+    env_file:
+      - .env
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.backend.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.backend.entrypoints=websecure"
+        - "traefik.http.routers.backend.tls=true"
+        - "traefik.http.routers.backend.priority=100"
+        - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+        - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.services.backend.loadbalancer.server.port=80"
+    networks:
+      - unmute-net
+
+  unmute:
+    image: intellipedia/unmute-websocket:v2
+    environment:
+      - KYUTAI_LLM_URL=https://api.groq.com/openai/v1
+      - KYUTAI_LLM_MODEL=openai/gpt-oss-20b
+      - KYUTAI_LLM_API_KEY=${GROQ_API_KEY}
+      - KYUTAI_STT_URL=ws://unmute_stt:8080
+      - KYUTAI_TTS_URL=ws://unmute_tts:8080
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.unmute.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/realtime`)"
+        - "traefik.http.routers.unmute.entrypoints=websecure"
+        - "traefik.http.routers.unmute.tls=true"
+        - "traefik.http.routers.unmute.priority=200"
+        - "traefik.http.routers.unmute.middlewares=unmute-stripprefix"
+        - "traefik.http.middlewares.unmute-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.services.unmute.loadbalancer.server.port=80"
+        - "traefik.http.routers.unmute-health.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/health`)"
+        - "traefik.http.routers.unmute-health.entrypoints=websecure"
+        - "traefik.http.routers.unmute-health.tls=true"
+        - "traefik.http.routers.unmute-health.middlewares=unmute-stripprefix"
+        - "traefik.http.routers.unmute-health.service=unmute"
+    networks:
+      - unmute-net
+
+  unmute_stt:
+    image: python:3.11-slim
+    command: |
+      sh -c "
+      pip install --no-cache-dir aiohttp requests && \
+      python - << 'EOF'
+      import aiohttp
+      from aiohttp import web, WSMsgType
+      import asyncio, json, requests
+      from io import BytesIO
+
+      GROQ_API_KEY = '${GROQ_API_KEY}'
+      GROQ_STT_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
+
+      async def health(request):
+          return web.json_response({'status':'ok','service':'stt-ws-groq-proxy'})
+
+      async def ws_handler(request):
+          ws = web.WebSocketResponse()
+          await ws.prepare(request)
+          buf = BytesIO()
+          try:
+              async for msg in ws:
+                  if msg.type == WSMsgType.BINARY:
+                      buf.write(msg.data)
+                  elif msg.type == WSMsgType.TEXT:
+                      try:
+                          data = json.loads(msg.data)
+                          if data.get('type') in ('end','end_audio'):
+                              audio = buf.getvalue(); buf.seek(0); buf.truncate(0)
+                              if audio:
+                                  files={'file':('audio.wav', audio, 'audio/wav')}
+                                  payload={'model':'whisper-large-v3-turbo','response_format':'json'}
+                                  resp = requests.post(GROQ_STT_URL, headers={'Authorization': f'Bearer {GROQ_API_KEY}'}, files=files, data=payload, timeout=30)
+                                  if resp.ok:
+                                      txt = resp.json().get('text','')
+                                      await ws.send_json({'type':'transcription','text':txt})
+                                  else:
+                                      await ws.send_json({'type':'error','message':'stt failed'})
+                      except Exception:
+                          await ws.send_json({'type':'error','message':'invalid message'})
+          finally:
+              await ws.close()
+          return ws
+
+      app = web.Application()
+      app.router.add_get('/api/build_info', health)
+      app.router.add_get('/', ws_handler)
+
+      web.run_app(app, host='0.0.0.0', port=8080)
+      EOF"
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=false"
+    networks:
+      - unmute-net
+
+  unmute_tts:
+    image: python:3.11-slim
+    command: |
+      sh -c "
+      pip install --no-cache-dir aiohttp requests && \
+      python - << 'EOF'
+      import aiohttp
+      from aiohttp import web, WSMsgType
+      import asyncio, json, requests, base64
+
+      GROQ_API_KEY = '${GROQ_API_KEY}'
+      GROQ_TTS_URL = 'https://api.groq.com/openai/v1/audio/speech'
+
+      async def health(request):
+          return web.json_response({'status':'ok','service':'tts-ws-groq-proxy'})
+
+      async def ws_handler(request):
+          ws = web.WebSocketResponse()
+          await ws.prepare(request)
+          try:
+              async for msg in ws:
+                  if msg.type == WSMsgType.TEXT:
+                      try:
+                          data = json.loads(msg.data)
+                          text = data.get('text','')
+                          if text:
+                              resp = requests.post(GROQ_TTS_URL, json={'model':'playai-tts','voice':'Ruby-PlayAI','input':text}, headers={'Authorization': f'Bearer {GROQ_API_KEY}'}, timeout=30)
+                              if resp.ok:
+                                  audio_b64 = base64.b64encode(resp.content).decode()
+                                  await ws.send_json({'type':'audio','audio_data':audio_b64,'format':'mp3'})
+                              else:
+                                  await ws.send_json({'type':'error','message':'tts failed'})
+                      except Exception:
+                          await ws.send_json({'type':'error','message':'invalid message'})
+          finally:
+              await ws.close()
+          return ws
+
+      app = web.Application()
+      app.router.add_get('/api/build_info', health)
+      app.router.add_get('/', ws_handler)
+
+      web.run_app(app, host='0.0.0.0', port=8080)
+      EOF"
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=false"
+    networks:
+      - unmute-net
