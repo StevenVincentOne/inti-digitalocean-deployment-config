@@ -253,57 +253,9 @@ services:
 
   # LLM Proxy Service - Forwards to Groq LLM API with Authentication
   unmute_llm:
-    image: nginx:alpine
-    command: |
-      sh -c "
-      cat > /etc/nginx/nginx.conf << 'EOF'
-      events {
-          worker_connections 1024;
-      }
-      http {
-          resolver 8.8.8.8 8.8.4.4 valid=300s;
-          resolver_timeout 5s;
-          
-          server {
-              listen 8080;
-              
-              # Health check endpoint for backend health monitoring
-              location /v1/models {
-                  proxy_pass https://api.groq.com/openai/v1/models;
-                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
-                  proxy_set_header Content-Type application/json;
-                  proxy_set_header Host api.groq.com;
-                  proxy_ssl_verify off;
-                  proxy_ssl_server_name on;
-                  proxy_ssl_protocols TLSv1.2 TLSv1.3;
-              }
-              
-              # Chat completions endpoint
-              location /v1/chat/completions {
-                  proxy_pass https://api.groq.com/openai/v1/chat/completions;
-                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
-                  proxy_set_header Content-Type application/json;
-                  proxy_set_header Host api.groq.com;
-                  proxy_ssl_verify off;
-                  proxy_ssl_server_name on;
-                  proxy_ssl_protocols TLSv1.2 TLSv1.3;
-              }
-              
-              # Catch-all for other v1 endpoints
-              location /v1/ {
-                  proxy_pass https://api.groq.com/openai/v1/;
-                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
-                  proxy_set_header Content-Type application/json;
-                  proxy_set_header Host api.groq.com;
-                  proxy_ssl_verify off;
-                  proxy_ssl_server_name on;
-                  proxy_ssl_protocols TLSv1.2 TLSv1.3;
-              }
-          }
-      }
-      EOF
-      nginx -g 'daemon off;'
-      "
+    image: intellipedia/inti-llm-groq-proxy:v1.2-final
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
     deploy:
       update_config:
         order: start-first
