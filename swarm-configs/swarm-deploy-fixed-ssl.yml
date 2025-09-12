@@ -126,6 +126,8 @@ services:
   # STT Proxy Service - Forwards to Groq Whisper API
   unmute_stt:
     image: intellipedia/inti-stt-groq-bridge:v1.0.0
+    env_file:
+      - .env
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_STT_MODEL=whisper-large-v3-turbo
