@@ -25,6 +25,9 @@ services:
       - "--api.dashboard=true"
       - "--api.insecure=false"
       - "--metrics.prometheus=true"
+      - "--accesslog=true"
+      - "--accesslog.fields.defaultmode=keep"
+      - "--accesslog.format=json"
       - "--log.level=INFO"
       - "--ping=true"
     healthcheck:
@@ -48,7 +51,7 @@ services:
       - unmute-net
 
   frontend:
-    image: intellipedia/inti-frontend:v15.10.1
+    image: intellipedia/inti-frontend:v15.11.1
     environment:
       - LLM_SERVICE_URL=http://llm:8000
     deploy:
