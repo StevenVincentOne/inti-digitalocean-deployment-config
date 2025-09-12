@@ -77,12 +77,12 @@ services:
     env_file:
       - .env
     environment:
-      - KYUTAI_LLM_URL=http://unmute_llm:8080
+      - KYUTAI_LLM_URL=http://unmute_unmute_llm:8080
       - KYUTAI_LLM_API_KEY=YOUR_GROQ_API_KEY_HERE
       - OPENAI_API_KEY=YOUR_GROQ_API_KEY_HERE
-      - KYUTAI_STT_URL=http://unmute_stt:8080
-      - KYUTAI_TTS_URL=http://unmute_tts:8080
-      - KYUTAI_VOICE_CLONING_URL=http://unmute_voice_cloning:8080
+      - KYUTAI_STT_URL=http://unmute_unmute_stt:8080
+      - KYUTAI_TTS_URL=http://unmute_unmute_tts:8080
+      - KYUTAI_VOICE_CLONING_URL=http://unmute_unmute_voice_cloning:8080
     deploy:
       update_config:
         order: start-first
@@ -103,9 +103,9 @@ services:
     env_file:
       - .env
     environment:
-      - KYUTAI_STT_URL=ws://unmute_stt:8080
-      - KYUTAI_TTS_URL=ws://unmute_tts:8080
-      - KYUTAI_LLM_URL=http://unmute_llm:8080
+      - KYUTAI_STT_URL=ws://unmute_unmute_stt:8080
+      - KYUTAI_TTS_URL=ws://unmute_unmute_tts:8080
+      - KYUTAI_LLM_URL=http://unmute_unmute_llm:8080
       - KYUTAI_LLM_MODEL=openai/gpt-oss-20b
       - KYUTAI_LLM_API_KEY=YOUR_GROQ_API_KEY_HERE
       - OPENAI_API_KEY=YOUR_GROQ_API_KEY_HERE
@@ -232,3 +232,4 @@ services:
         order: start-first
     networks:
       - unmute-net
+
