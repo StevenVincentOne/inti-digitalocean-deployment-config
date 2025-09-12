@@ -125,40 +125,10 @@ services:
 
   # STT Proxy Service - Forwards to Groq Whisper API
   unmute_stt:
-    image: nginx:alpine
-    command: |
-      sh -c "
-      cat > /etc/nginx/nginx.conf << 'EOF'
-      events {
-          worker_connections 1024;
-      }
-      http {
-          client_max_body_size 100M;
-          server {
-              listen 8080;
-              
-              # Health check endpoint
-              location /api/build_info {
-                  return 200 '{\"status\": \"ok\", \"service\": \"stt-groq-proxy\"}';
-                  add_header Content-Type application/json;
-              }
-              
-              # Audio transcription endpoint
-              location /audio/transcriptions {
-                  proxy_pass https://api.groq.com/openai/v1/audio/transcriptions;
-                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
-              }
-              
-              # Catch-all for other audio endpoints
-              location / {
-                  proxy_pass https://api.groq.com/openai/v1/audio/;
-                  proxy_set_header Authorization 'Bearer YOUR_GROQ_API_KEY_HERE';
-              }
-          }
-      }
-      EOF
-      nginx -g 'daemon off;'
-      "
+    image: intellipedia/inti-stt-groq-bridge:v1.0.0
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_STT_MODEL=whisper-large-v3-turbo
     deploy:
       update_config:
         order: start-first
