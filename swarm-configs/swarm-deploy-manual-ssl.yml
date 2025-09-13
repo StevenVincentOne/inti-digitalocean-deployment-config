@@ -24,7 +24,10 @@ services:
       - "--api.dashboard=true"
       - "--api.insecure=false"
       - "--metrics.prometheus=true"
-      - "--log.level=INFO"
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+      - "--accesslog.fields.defaultmode=keep"
+      - "--accesslog.format=json"
       - "--ping=true"
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
@@ -104,6 +107,12 @@ services:
         - "traefik.http.routers.unmute.tls=true"
         - "traefik.http.routers.unmute.priority=200"
         - "traefik.http.services.unmute.loadbalancer.server.port=80"
+        # Dedicated WS router for diagnostics and clear match on /v1/realtime
+        - "traefik.http.routers.unmutews.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
+        - "traefik.http.routers.unmutews.entrypoints=websecure"
+        - "traefik.http.routers.unmutews.tls=true"
+        - "traefik.http.routers.unmutews.priority=250"
+        - "traefik.http.routers.unmutews.service=unmute"
     networks:
       - unmute-net
 
