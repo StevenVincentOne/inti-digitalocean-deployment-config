@@ -69,11 +69,11 @@ services:
   unmute:
     image: intellipedia/unmute-websocket:v2
     environment:
-      - KYUTAI_LLM_URL=https://api.groq.com/openai/v1
+      - KYUTAI_LLM_URL=https://api.groq.com
       - KYUTAI_LLM_MODEL=openai/gpt-oss-20b
       - KYUTAI_LLM_API_KEY=${GROQ_API_KEY}
-      - KYUTAI_STT_URL=ws://unmute_stt:8080
-      - KYUTAI_TTS_URL=ws://unmute_tts:8080
+      - KYUTAI_STT_URL=ws://unmute_unmute_stt:8080
+      - KYUTAI_TTS_URL=ws://unmute_unmute_tts:8080
     deploy:
       update_config:
         order: start-first
@@ -95,8 +95,16 @@ services:
         - "traefik.http.routers.unmute-health.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/health`)"
         - "traefik.http.routers.unmute-health.entrypoints=websecure"
         - "traefik.http.routers.unmute-health.tls=true"
+        - "traefik.http.routers.unmute-health.priority=200"
         - "traefik.http.routers.unmute-health.middlewares=unmute-stripprefix"
         - "traefik.http.routers.unmute-health.service=unmute"
+        # Voices endpoint so the configurator can fetch /api/v1/voices
+        - "traefik.http.routers.unmute-voices.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/voices`)"
+        - "traefik.http.routers.unmute-voices.entrypoints=websecure"
+        - "traefik.http.routers.unmute-voices.tls=true"
+        - "traefik.http.routers.unmute-voices.priority=200"
+        - "traefik.http.routers.unmute-voices.middlewares=unmute-stripprefix"
+        - "traefik.http.routers.unmute-voices.service=unmute"
     networks:
       - unmute-net
 
