@@ -73,7 +73,7 @@ services:
     environment:
       - KYUTAI_LLM_URL=https://api.groq.com/openai
       - KYUTAI_LLM_MODEL=openai/gpt-oss-20b
-      - KYUTAI_LLM_API_KEY=${GROQ_API_KEY}
+
       - KYUTAI_STT_URL=ws://unmute_unmute_stt:8080
       - KYUTAI_TTS_URL=ws://unmute_unmute_tts:8080
       - KYUTAI_VOICE_CLONING_URL=http://unmute_unmute_voice_cloning:8080
