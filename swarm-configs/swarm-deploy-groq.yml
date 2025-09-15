@@ -112,56 +112,11 @@ services:
       - unmute-net
 
   unmute_stt:
-    image: python:3.11-slim
-    command: |
-      sh -c "
-      pip install --no-cache-dir aiohttp requests && \
-      python - << 'EOF'
-      import aiohttp
-      from aiohttp import web, WSMsgType
-      import asyncio, json, requests
-      from io import BytesIO
-
-      GROQ_API_KEY = '${GROQ_API_KEY}'
-      GROQ_STT_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
-
-      async def health(request):
-          return web.json_response({'status':'ok','service':'stt-ws-groq-proxy'})
-
-      async def ws_handler(request):
-          ws = web.WebSocketResponse()
-          await ws.prepare(request)
-          buf = BytesIO()
-          try:
-              async for msg in ws:
-                  if msg.type == WSMsgType.BINARY:
-                      buf.write(msg.data)
-                  elif msg.type == WSMsgType.TEXT:
-                      try:
-                          data = json.loads(msg.data)
-                          if data.get('type') in ('end','end_audio'):
-                              audio = buf.getvalue(); buf.seek(0); buf.truncate(0)
-                              if audio:
-                                  files={'file':('audio.wav', audio, 'audio/wav')}
-                                  payload={'model':'whisper-large-v3-turbo','response_format':'json'}
-                                  resp = requests.post(GROQ_STT_URL, headers={'Authorization': f'Bearer {GROQ_API_KEY}'}, files=files, data=payload, timeout=30)
-                                  if resp.ok:
-                                      txt = resp.json().get('text','')
-                                      await ws.send_json({'type':'transcription','text':txt})
-                                  else:
-                                      await ws.send_json({'type':'error','message':'stt failed'})
-                      except Exception:
-                          await ws.send_json({'type':'error','message':'invalid message'})
-          finally:
-              await ws.close()
-          return ws
-
-      app = web.Application()
-      app.router.add_get('/api/build_info', health)
-      app.router.add_get('/', ws_handler)
-
-      web.run_app(app, host='0.0.0.0', port=8080)
-      EOF"
+    image: intellipedia/inti-stt-groq-bridge:v1.0.0
+    environment:
+      - OPENAI_API_KEY=${GROQ_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_STT_MODEL=whisper-large-v3-turbo
     deploy:
       update_config:
         order: start-first
