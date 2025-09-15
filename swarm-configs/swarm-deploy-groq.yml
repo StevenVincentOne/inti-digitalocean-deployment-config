@@ -113,9 +113,9 @@ services:
 
   unmute_stt:
     image: intellipedia/inti-stt-groq-bridge:v1.0.0
+    env_file:
+      - .env
     environment:
-      - OPENAI_API_KEY=${GROQ_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_STT_MODEL=whisper-large-v3-turbo
     deploy:
       update_config:
@@ -127,9 +127,8 @@ services:
 
   unmute_tts:
     image: intellipedia/inti-tts-groq-bridge:v1.0
-    environment:
-      - OPENAI_API_KEY=${GROQ_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
+    env_file:
+      - .env
     deploy:
       update_config:
         order: start-first
