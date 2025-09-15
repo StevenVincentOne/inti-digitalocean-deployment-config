@@ -112,7 +112,7 @@ services:
       - unmute-net
 
   unmute_stt:
-    image: intellipedia/inti-stt-groq-bridge:v1.0.0
+    image: intellipedia/inti-stt-groq-bridge:v1.0.1-ipv4-fix
     env_file:
       - .env
     environment:
@@ -126,7 +126,7 @@ services:
       - unmute-net
 
   unmute_tts:
-    image: intellipedia/inti-tts-groq-bridge:v1.0
+    image: intellipedia/inti-tts-groq-bridge:v1.0.1-ipv4-fix
     env_file:
       - .env
     deploy:
