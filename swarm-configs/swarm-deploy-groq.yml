@@ -12,6 +12,7 @@ services:
     image: traefik:v3.3.1
     command:
       - "--configFile=/etc/traefik/traefik-static.yml"
+      - "--providers.docker.swarmMode=true"
     ports:
       - "80:80"
       - "443:443"
