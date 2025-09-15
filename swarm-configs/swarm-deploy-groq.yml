@@ -138,7 +138,7 @@ services:
       - unmute-net
 
   unmute_llm:
-    image: intellipedia/inti-llm-groq-proxy:v1.2-final-8080-fix4
+    image: intellipedia/inti-llm-groq-proxy:v1.2-final-ipv4-fix
     env_file:
       - .env
     deploy:
