@@ -126,49 +126,10 @@ services:
       - unmute-net
 
   unmute_tts:
-    image: python:3.11-slim
-    command: |
-      sh -c "
-      pip install --no-cache-dir aiohttp requests && \
-      python - << 'EOF'
-      import aiohttp
-      from aiohttp import web, WSMsgType
-      import asyncio, json, requests, base64
-
-      GROQ_API_KEY = '${GROQ_API_KEY}'
-      GROQ_TTS_URL = 'https://api.groq.com/openai/v1/audio/speech'
-
-      async def health(request):
-          return web.json_response({'status':'ok','service':'tts-ws-groq-proxy'})
-
-      async def ws_handler(request):
-          ws = web.WebSocketResponse()
-          await ws.prepare(request)
-          try:
-              async for msg in ws:
-                  if msg.type == WSMsgType.TEXT:
-                      try:
-                          data = json.loads(msg.data)
-                          text = data.get('text','')
-                          if text:
-                              resp = requests.post(GROQ_TTS_URL, json={'model':'playai-tts','voice':'Ruby-PlayAI','input':text}, headers={'Authorization': f'Bearer {GROQ_API_KEY}'}, timeout=30)
-                              if resp.ok:
-                                  audio_b64 = base64.b64encode(resp.content).decode()
-                                  await ws.send_json({'type':'audio','audio_data':audio_b64,'format':'mp3'})
-                              else:
-                                  await ws.send_json({'type':'error','message':'tts failed'})
-                      except Exception:
-                          await ws.send_json({'type':'error','message':'invalid message'})
-          finally:
-              await ws.close()
-          return ws
-
-      app = web.Application()
-      app.router.add_get('/api/build_info', health)
-      app.router.add_get('/', ws_handler)
-
-      web.run_app(app, host='0.0.0.0', port=8080)
-      EOF"
+    image: intellipedia/inti-tts-groq-bridge:v1.0
+    environment:
+      - OPENAI_API_KEY=${GROQ_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     deploy:
       update_config:
         order: start-first
