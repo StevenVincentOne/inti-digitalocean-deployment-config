@@ -126,7 +126,7 @@ services:
       - unmute-net
 
   unmute_tts:
-    image: intellipedia/inti-tts-groq-bridge:v1.0.1-ipv4-fix
+    image: intellipedia/inti-tts-groq-bridge:v1.0.2-response-format-fix
     env_file:
       - .env
     deploy:
