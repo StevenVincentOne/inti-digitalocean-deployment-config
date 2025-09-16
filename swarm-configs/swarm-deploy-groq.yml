@@ -67,7 +67,7 @@ services:
       - unmute-net
 
   unmute:
-    image: intellipedia/unmute-websocket:v2
+    image: intellipedia/unmute-backend:working-20250723
     env_file:
       - .env
     environment:
