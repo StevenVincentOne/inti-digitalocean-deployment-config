@@ -1,4 +1,4 @@
-﻿version: '3.9'
+version: '3.9'
 
 networks:
   unmute-net:
@@ -79,7 +79,7 @@ services:
       - INTI_LOG_LEVEL=${INTI_LOG_LEVEL:-INFO}
       - INTI_SAMPLE_RATE=${INTI_SAMPLE_RATE:-48000}
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\")'" ]
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\")'"]
       interval: 30s
       timeout: 10s
       retries: 3
