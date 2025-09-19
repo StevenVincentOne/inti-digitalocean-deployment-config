@@ -89,12 +89,7 @@ services:
         - "traefik.http.routers.unmute.middlewares=unmute-stripprefix"
         - "traefik.http.middlewares.unmute-stripprefix.stripprefix.prefixes=/api"
         - "traefik.http.services.unmute.loadbalancer.server.port=80"
-        # Back-compat + direct WS path without /api
-        - "traefik.http.routers.unmute2.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
-        - "traefik.http.routers.unmute2.entrypoints=websecure"
-        - "traefik.http.routers.unmute2.tls=true"
-        - "traefik.http.routers.unmute2.priority=200"
-        - "traefik.http.routers.unmute2.service=unmute"
+        # NOTE: /v1/realtime now handled by pipecat-backend service below
         - "traefik.http.routers.unmute-health.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/health`)"
         - "traefik.http.routers.unmute-health.entrypoints=websecure"
         - "traefik.http.routers.unmute-health.tls=true"
@@ -108,6 +103,32 @@ services:
         - "traefik.http.routers.unmute-voices.priority=200"
         - "traefik.http.routers.unmute-voices.middlewares=unmute-stripprefix"
         - "traefik.http.routers.unmute-voices.service=unmute"
+    networks:
+      - unmute-net
+
+  pipecat-backend:
+    image: intellipedia/inti-pipecat-backend:dev
+    env_file:
+      - .env
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        # Direct WebSocket path for voice realtime
+        - "traefik.http.routers.pipecat-realtime.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
+        - "traefik.http.routers.pipecat-realtime.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-realtime.tls=true"
+        - "traefik.http.routers.pipecat-realtime.priority=250"
+        - "traefik.http.services.pipecat-backend.loadbalancer.server.port=8000"
+        # Health endpoint for Pipecat service
+        - "traefik.http.routers.pipecat-health.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/health`) && Header(`X-Service`, `pipecat`)"
+        - "traefik.http.routers.pipecat-health.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-health.tls=true"
+        - "traefik.http.routers.pipecat-health.priority=350"
+        - "traefik.http.routers.pipecat-health.middlewares=pipecat-stripprefix"
+        - "traefik.http.middlewares.pipecat-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.routers.pipecat-health.service=pipecat-backend"
     networks:
       - unmute-net
 
