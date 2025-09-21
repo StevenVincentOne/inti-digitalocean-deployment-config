@@ -95,7 +95,7 @@ services:
         - "traefik.http.routers.backend-health.service=backend"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
         - "traefik.http.middlewares.pipecat-strip.stripprefix.prefixes=/api"
-        - "traefik.http.middlewares.pipecat-ws.replacepath.path=/ws"
+        - "traefik.http.middlewares.pipecat-ws.replacepath.path=/v1/realtime"
         - "traefik.http.middlewares.pipecat-health.replacepath.path=/health"
     networks:
       - unmute-net
