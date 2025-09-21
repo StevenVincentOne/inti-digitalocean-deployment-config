@@ -34,7 +34,7 @@ services:
       - unmute-net
 
   frontend:
-    image: intellipedia/inti-frontend:v15.11.26
+    image: intellipedia/inti-frontend:v15.11.27
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
