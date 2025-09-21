@@ -69,7 +69,7 @@ services:
   # NOTE: unmute service removed - replaced by pipecat-backend for voice operations
 
   pipecat-backend:
-    image: intellipedia/inti-pipecat-backend:dev
+    image: intellipedia/inti-pipecat-backend:dev.14
     env_file:
       - .env
     deploy:
