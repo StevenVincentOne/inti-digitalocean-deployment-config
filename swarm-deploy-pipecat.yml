@@ -4,6 +4,9 @@ networks:
   unmute-net:
     external: true
 
+volumes:
+  traefik-cert:
+
 services:
   traefik:
     image: traefik:v3.3.1
@@ -15,19 +18,23 @@ services:
     volumes:
       - /root/traefik-static.yml:/etc/traefik/traefik-static.yml:ro
       - /root/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
-      - /root/certs:/etc/certs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    secrets:
+      - source: ssl-cert
+        target: /ssl/inti.intellipedia.ai.crt
+      - source: ssl-key
+        target: /ssl/inti.intellipedia.ai.key
+      - source: tls-config
+        target: /ssl/tls.yml
     deploy:
       placement:
         constraints:
           - node.role == manager
-      update_config:
-        order: stop-first
     networks:
       - unmute-net
 
   frontend:
-    image: intellipedia/inti-frontend:v15.11.25
+    image: intellipedia/inti-frontend:v15.11.26
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
@@ -47,6 +54,27 @@ services:
       - unmute-net
 
   backend:
+    image: intellipedia/inti-new-backend:v1.0.0
+    env_file:
+      - .env
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.backend.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api`) && !PathPrefix(`/api/v1/`)"
+        - "traefik.http.routers.backend.entrypoints=websecure"
+        - "traefik.http.routers.backend.tls=true"
+        - "traefik.http.routers.backend.priority=100"
+        - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+        - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.services.backend.loadbalancer.server.port=80"
+    networks:
+      - unmute-net
+
+  # NOTE: unmute service removed - replaced by pipecat-backend for voice operations
+
+  pipecat-backend:
     image: intellipedia/inti-pipecat-backend:dev.15
     env_file:
       - .env
@@ -75,27 +103,91 @@ services:
           memory: 256M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.backend.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/realtime`)"
-        - "traefik.http.routers.backend.entrypoints=websecure"
-        - "traefik.http.routers.backend.tls=true"
-        - "traefik.http.routers.backend.priority=300"
-        - "traefik.http.routers.backend.middlewares=pipecat-strip,pipecat-ws"
-        - "traefik.http.routers.backend.service=backend"
-        - "traefik.http.routers.backend-direct.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
-        - "traefik.http.routers.backend-direct.entrypoints=websecure"
-        - "traefik.http.routers.backend-direct.tls=true"
-        - "traefik.http.routers.backend-direct.priority=300"
-        - "traefik.http.routers.backend-direct.middlewares=pipecat-ws"
-        - "traefik.http.routers.backend-direct.service=backend"
-        - "traefik.http.routers.backend-health.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/health`)"
-        - "traefik.http.routers.backend-health.entrypoints=websecure"
-        - "traefik.http.routers.backend-health.tls=true"
-        - "traefik.http.routers.backend-health.priority=320"
-        - "traefik.http.routers.backend-health.middlewares=pipecat-strip,pipecat-health"
-        - "traefik.http.routers.backend-health.service=backend"
-        - "traefik.http.services.backend.loadbalancer.server.port=8000"
-        - "traefik.http.middlewares.pipecat-strip.stripprefix.prefixes=/api"
-        - "traefik.http.middlewares.pipecat-ws.replacepath.path=/v1/realtime"
-        - "traefik.http.middlewares.pipecat-health.replacepath.path=/health"
+        # Direct WebSocket path for voice realtime
+        - "traefik.http.routers.pipecat-realtime.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
+        - "traefik.http.routers.pipecat-realtime.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-realtime.tls=true"
+        - "traefik.http.routers.pipecat-realtime.priority=250"
+        - "traefik.http.services.pipecat-backend.loadbalancer.server.port=8000"
+        # Health endpoint for voice services
+        - "traefik.http.routers.pipecat-health.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api/v1/health`)"
+        - "traefik.http.routers.pipecat-health.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-health.tls=true"
+        - "traefik.http.routers.pipecat-health.priority=300"
+        - "traefik.http.routers.pipecat-health.middlewares=pipecat-stripprefix"
+        - "traefik.http.middlewares.pipecat-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.routers.pipecat-health.service=pipecat-backend"
     networks:
       - unmute-net
+
+  unmute_stt:
+    image: intellipedia/inti-stt-groq-bridge:v1.0.1-ipv4-fix
+    env_file:
+      - .env
+    environment:
+      - GROQ_STT_MODEL=whisper-large-v3-turbo
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=false"
+    networks:
+      - unmute-net
+
+  unmute_tts:
+    image: intellipedia/inti-tts-groq-bridge:v1.0.3-audio-quality-fix
+    env_file:
+      - .env
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=false"
+    networks:
+      - unmute-net
+
+  unmute_llm:
+    image: intellipedia/inti-llm-groq-proxy:v1.2-final-ipv4-fix
+    env_file:
+      - .env
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=false"
+    networks:
+      - unmute-net
+
+  unmute_voice_cloning:
+    image: nginx:alpine
+    command: |
+      sh -c "
+      cat > /etc/nginx/nginx.conf << 'EOF'
+      events { worker_connections 1024; }
+      http {
+        server {
+          listen 8080;
+          location /api/build_info {
+            return 200 '{\"status\": \"ok\", \"service\": \"voice-cloning\"}';
+            add_header Content-Type application/json;
+          }
+        }
+      }
+      EOF
+      nginx -g 'daemon off;'
+      "
+    deploy:
+      update_config:
+        order: start-first
+      labels:
+        - "traefik.enable=false"
+    networks:
+      - unmute-net
+
+secrets:
+  ssl-cert:
+    external: true
+  ssl-key:
+    external: true
+  tls-config:
+    external: true

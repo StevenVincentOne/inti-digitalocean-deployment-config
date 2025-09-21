@@ -28,7 +28,7 @@ services:
       - unmute-net
 
   frontend:
-    image: intellipedia/inti-frontend:v15.11.23
+    image: intellipedia/inti-frontend:v15.11.25
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
@@ -69,12 +69,32 @@ services:
   # NOTE: unmute service removed - replaced by pipecat-backend for voice operations
 
   pipecat-backend:
-    image: intellipedia/inti-pipecat-backend:dev.14
+    image: intellipedia/inti-pipecat-backend:dev.15
     env_file:
       - .env
+    environment:
+      - INTI_ALLOW_MOCK_KEYS=${INTI_ALLOW_MOCK_KEYS:-false}
+      - INTI_LOG_LEVEL=${INTI_LOG_LEVEL:-INFO}
+      - INTI_SAMPLE_RATE=${INTI_SAMPLE_RATE:-48000}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\")'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     deploy:
+      replicas: 1
       update_config:
+        delay: 10s
+        parallelism: 1
         order: start-first
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
       labels:
         - "traefik.enable=true"
         # Direct WebSocket path for voice realtime
