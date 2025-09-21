@@ -4,26 +4,40 @@ networks:
   unmute-net:
     external: true
 
+volumes:
+  traefik-cert:
+
 services:
   traefik:
     image: traefik:v3.3.1
+    env_file:
+      - .env
     command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
+      - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
+      - "--providers.swarm.exposedByDefault=false"
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.letsencrypt.acme.email=admin@intellipedia.ai"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.tlschallenge=true"
+      - "--certificatesresolvers.le.acme.email=steve@intellipedia.ai"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--metrics.prometheus=true"
+      - "--log.level=INFO"
+      - "--ping=true"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      - traefik-cert:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /data/acme.json:/data/acme.json
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     deploy:
       placement:
         constraints:
@@ -46,7 +60,7 @@ services:
         - "traefik.http.routers.frontend.rule=Host(`inti.intellipedia.ai`)"
         - "traefik.http.routers.frontend.entrypoints=websecure"
         - "traefik.http.routers.frontend.tls=true"
-        - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.frontend.tls.certresolver=le"
         - "traefik.http.services.frontend.loadbalancer.server.port=3000"
         - "traefik.http.routers.frontend.priority=50"
     networks:
@@ -72,14 +86,14 @@ services:
         - "traefik.http.routers.backend-realtime.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
         - "traefik.http.routers.backend-realtime.entrypoints=websecure"
         - "traefik.http.routers.backend-realtime.tls=true"
-        - "traefik.http.routers.backend-realtime.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.backend-realtime.tls.certresolver=le"
         - "traefik.http.routers.backend-realtime.priority=300"
         - "traefik.http.services.backend.loadbalancer.server.port=8000"
         # API endpoints
         - "traefik.http.routers.backend-api.rule=Host(`inti.intellipedia.ai`) && PathPrefix(`/api`)"
         - "traefik.http.routers.backend-api.entrypoints=websecure"
         - "traefik.http.routers.backend-api.tls=true"
-        - "traefik.http.routers.backend-api.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.backend-api.tls.certresolver=le"
         - "traefik.http.routers.backend-api.priority=250"
         - "traefik.http.routers.backend-api.middlewares=backend-stripprefix"
         - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
