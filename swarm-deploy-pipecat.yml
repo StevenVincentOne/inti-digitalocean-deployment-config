@@ -67,7 +67,7 @@ services:
       - unmute-net
 
   backend:
-    image: intellipedia/inti-pipecat-backend:dev.18
+    image: intellipedia/inti-pipecat-backend:dev.20-diagnosis
     env_file:
       - .env
     environment:
