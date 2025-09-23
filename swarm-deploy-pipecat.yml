@@ -67,7 +67,7 @@ services:
       - unmute-net
 
   backend:
-    image: intellipedia/inti-pipecat-backend:dev.20-diagnosis
+    image: intellipedia/inti-pipecat-backend:dev.21-ogg-opus
     env_file:
       - .env
     environment:
