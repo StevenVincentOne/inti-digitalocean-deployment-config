@@ -67,7 +67,7 @@ services:
       - unmute-net
 
   backend:
-    image: intellipedia/inti-pipecat-backend:dev.24-streaming-ogg-parser
+    image: intellipedia/inti-pipecat-backend:dev.28-stt-trigger-fix
     env_file:
       - .env
     environment:
