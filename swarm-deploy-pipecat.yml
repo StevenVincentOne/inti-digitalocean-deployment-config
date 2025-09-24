@@ -46,7 +46,7 @@ services:
       - unmute-net
 
   frontend:
-    image: intellipedia/inti-frontend:v15.11.30-headers-fix
+    image: intellipedia/inti-frontend:v15.11.32-temporal-dead-zone-fix
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
@@ -67,7 +67,7 @@ services:
       - unmute-net
 
   backend:
-    image: intellipedia/inti-pipecat-backend:dev.22-debug
+    image: intellipedia/inti-pipecat-backend:dev.24-streaming-ogg-parser
     env_file:
       - .env
     environment:
