@@ -22,6 +22,8 @@ services:
       - "--certificatesresolvers.le.acme.tlschallenge=true"
       - "--certificatesresolvers.le.acme.email=steve@intellipedia.ai"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--providers.file.directory=/ssl"
+      - "--providers.file.watch=true"
       - "--api.dashboard=true"
       - "--api.insecure=false"
       - "--metrics.prometheus=true"
@@ -35,6 +37,7 @@ services:
     volumes:
       - traefik-cert:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /root/ssl:/ssl:ro
     dns:
       - 1.1.1.1
       - 8.8.8.8

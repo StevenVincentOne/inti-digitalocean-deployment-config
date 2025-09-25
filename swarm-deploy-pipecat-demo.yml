@@ -1,0 +1,58 @@
+version: '3.9'
+
+networks:
+  unmute-net:
+    external: true
+
+services:
+  pipecat-demo-backend:
+    image: intellipedia/pipecat-groq-backend:dev-20250924a
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=INFO
+      - INPUT_SAMPLE_RATE=16000
+      - OUTPUT_SAMPLE_RATE=48000
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pipecat-demo-api.rule=Host(`pipecat.intellipedia.ai`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.pipecat-demo-api.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-demo-api.tls=true"
+        - "traefik.http.routers.pipecat-demo-api.tls.certresolver=le"
+        - "traefik.http.routers.pipecat-demo-api.middlewares=pipecat-demo-strip"
+        - "traefik.http.middlewares.pipecat-demo-strip.stripprefix.prefixes=/api"
+        - "traefik.http.routers.pipecat-demo-api.service=pipecat-demo-backend"
+        - "traefik.http.routers.pipecat-demo-realtime.rule=Host(`pipecat.intellipedia.ai`) && PathPrefix(`/v1/realtime`)"
+        - "traefik.http.routers.pipecat-demo-realtime.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-demo-realtime.tls=true"
+        - "traefik.http.routers.pipecat-demo-realtime.tls.certresolver=le"
+        - "traefik.http.routers.pipecat-demo-realtime.service=pipecat-demo-backend"
+        - "traefik.http.services.pipecat-demo-backend.loadbalancer.server.port=8000"
+    networks:
+      - unmute-net
+
+  pipecat-demo-frontend:
+    image: intellipedia/pipecat-groq-frontend:dev-20250924
+    environment:
+      - VITE_WS_URL=wss://pipecat.intellipedia.ai/v1/realtime
+      - VITE_INPUT_SAMPLE_RATE=16000
+      - VITE_OUTPUT_SAMPLE_RATE=48000
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.pipecat-demo-frontend.rule=Host(`pipecat.intellipedia.ai`)"
+        - "traefik.http.routers.pipecat-demo-frontend.entrypoints=websecure"
+        - "traefik.http.routers.pipecat-demo-frontend.tls=true"
+        - "traefik.http.routers.pipecat-demo-frontend.tls.certresolver=le"
+        - "traefik.http.services.pipecat-demo-frontend.loadbalancer.server.port=80"
+    networks:
+      - unmute-net
