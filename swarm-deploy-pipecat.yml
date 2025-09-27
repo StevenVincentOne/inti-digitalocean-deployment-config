@@ -4,12 +4,9 @@ networks:
   unmute-net:
     external: true
 
-volumes:
-  traefik-cert:
-
 services:
   unmute_frontend:
-    image: intellipedia/inti-frontend-groq:voice-pipecat-v5
+    image: intellipedia/pipecat-groq-frontend:dev-20250927a
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
@@ -30,7 +27,7 @@ services:
       - unmute-net
 
   unmute_backend:
-    image: intellipedia/pipecat-groq-backend:openai-tts-fixed-v2
+    image: intellipedia/pipecat-groq-backend:dev-20250927a
     env_file:
       - .env
     environment:
@@ -66,30 +63,3 @@ services:
       - unmute-net
 
 
-  unmute_traefik:
-    image: traefik:v3.3.1
-    command:
-      - --providers.swarm=true
-      - --providers.swarm.endpoint=unix:///var/run/docker.sock
-      - --providers.swarm.exposedbydefault=false
-      - --providers.swarm.network=unmute-net
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.le.acme.tlschallenge=true
-      - --certificatesresolvers.le.acme.email=steve@intellipedia.ai
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - traefik-cert:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
-    networks:
-      - unmute-net
