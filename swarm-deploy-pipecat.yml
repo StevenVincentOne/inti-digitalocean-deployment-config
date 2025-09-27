@@ -9,7 +9,7 @@ volumes:
 
 services:
   unmute_frontend:
-    image: intellipedia/inti-frontend-groq:voice-pipecat-v3
+    image: intellipedia/inti-frontend-groq:voice-pipecat-v5
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
