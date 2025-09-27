@@ -30,7 +30,7 @@ services:
       - unmute-net
 
   backend:
-    image: intellipedia/pipecat-groq-backend:openai-tts-fixed
+    image: intellipedia/pipecat-groq-backend:openai-tts-fixed-v2
     env_file:
       - .env
     environment:
