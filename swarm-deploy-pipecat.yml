@@ -9,7 +9,7 @@ volumes:
 
 services:
   unmute_frontend:
-    image: intellipedia/inti-frontend-groq:openai-tts-v2
+    image: intellipedia/inti-frontend-groq:openai-tts-v4
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
