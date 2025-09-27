@@ -8,48 +8,8 @@ volumes:
   traefik-cert:
 
 services:
-  traefik:
-    image: traefik:v3.3.1
-    env_file:
-      - .env
-    command:
-      - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
-      - "--providers.swarm.exposedByDefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.le.acme.tlschallenge=true"
-      - "--certificatesresolvers.le.acme.email=steve@intellipedia.ai"
-      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
-      - "--providers.file.directory=/ssl"
-      - "--providers.file.watch=true"
-      - "--api.dashboard=true"
-      - "--api.insecure=false"
-      - "--metrics.prometheus=true"
-      - "--log.level=INFO"
-      - "--ping=true"
-    healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - traefik-cert:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /root/ssl:/ssl:ro
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
-    networks:
-      - unmute-net
-
   frontend:
-    image: intellipedia/inti-frontend:dev.pcm-test2
+    image: intellipedia/inti-frontend-groq:openai-compatible
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
@@ -70,7 +30,7 @@ services:
       - unmute-net
 
   backend:
-    image: intellipedia/inti-pipecat-backend:dev.pcm-test4
+    image: intellipedia/pipecat-groq-backend:openai-tts
     env_file:
       - .env
     environment:
@@ -104,3 +64,4 @@ services:
         - "traefik.http.routers.backend-realtime.service=backend"
     networks:
       - unmute-net
+
