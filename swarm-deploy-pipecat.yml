@@ -8,7 +8,7 @@ volumes:
   traefik-cert:
 
 services:
-  frontend:
+  unmute_frontend:
     image: intellipedia/inti-frontend-groq:openai-tts-v2
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
@@ -29,7 +29,7 @@ services:
     networks:
       - unmute-net
 
-  backend:
+  unmute_backend:
     image: intellipedia/pipecat-groq-backend:openai-tts-fixed-v2
     env_file:
       - .env
