@@ -6,7 +6,7 @@ networks:
 
 services:
   unmute_frontend:
-    image: intellipedia/pipecat-groq-frontend:dev-20250927a
+    image: intellipedia/pipecat-groq-frontend:dev-20250927f
     environment:
       - NEXT_PUBLIC_IN_DOCKER=true
       - NEXT_PUBLIC_WS_URL=wss://inti.intellipedia.ai/v1/realtime
