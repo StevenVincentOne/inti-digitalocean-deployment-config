@@ -58,7 +58,7 @@ services:
       - unmute-net
 
   unmute_backend:
-    image: intellipedia/pipecat-groq-backend:dev-20250929a
+    image: intellipedia/pipecat-groq-backend:dev-20250929b
     env_file:
       - .env
     environment:
